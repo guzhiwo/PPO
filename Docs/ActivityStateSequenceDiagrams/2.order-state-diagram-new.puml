@@ -1,0 +1,33 @@
+@startuml
+
+[*]     --> OrderCreated :Создать заказ
+OrderCreated :Заказ создан
+OrderCreated-->OrderDriverSearch :Искать водителя
+OrderDriverSearch :Поиск свободной машины
+OrderDriverSearch-->OrderDriverSearchSuccess :Свободная машина найдена
+OrderDriverSearch-->OrderDriverSearchFail :Свободная машина не найдена
+OrderDriverSearchSuccess :Машина найдена успешно
+
+OrderDriverSearchSuccess-->OrderCarDispatch :Подать машину
+OrderCarDispatch :Машина подана
+
+OrderCarDispatch-->OrderCarPrepareStart :Отправить машину на место подачи
+OrderCarPrepareStart :Машина на месте подачи
+OrderCarPrepareStart-->OrderCarPrepareFinish :Ждать клиента
+OrderCarPrepareFinish :Клиент сел в машину
+OrderCarPrepareFinish-->OrderCarStart :Стартануть
+OrderCarStart:Поездка
+OrderCarStart-->OrderCarFinish :Машина на месте назначения
+OrderCarFinish:Поездка заверешена
+OrderCarFinish-->OrderPay :Запросить оплату
+OrderPay :Оплата прошла успешно
+OrderPay-->OrderFinish :Завершить заказ
+
+OrderDriverSearchFail :Машина не найден
+OrderDriverSearchFail-->OrderCancel :Отменить заказ
+OrderCancel :Заказ отменён
+OrderCancel-->OrderFinish :Завершить заказ
+OrderFinish :Заказ завершён
+
+
+@enduml

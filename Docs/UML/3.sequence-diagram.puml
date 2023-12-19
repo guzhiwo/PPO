@@ -1,0 +1,29 @@
+@startuml
+title gg
+
+actor        Водитель                as Driver
+actor        Кленит                  as Client
+participant  "Кленитское приложение" as Frontend
+participant  BACKEND                 as Backend
+
+group "Выход на линию водителя"
+Driver->Frontend:Загрузить фотку
+Driver->Frontend:Выйти на линию
+Frontend->Backend:Добавить водителя в очередь заказов
+Frontend->Driver:Сообщить о добавлении \n в очередь на заказ
+end
+
+group "Создание заказа"
+Client->Frontend:Ввести данные для заказа
+Frontend->Backend:Получить достпные варианты поездки\nи цены
+Frontend->Client:Показать доступные тарифы и цены
+Client->Frontend:Заказать такси
+Frontend->Backend:Найти машину
+Backend->Driver:Сообщить о новом заказе
+Driver->Backend:Принять заказ
+Backend->Frontend:Сообщить о назначенной машине
+Frontend->Client:Показать водителя на карте
+Frontend->Driver:Показать клиента на карте
+end
+
+@enduml

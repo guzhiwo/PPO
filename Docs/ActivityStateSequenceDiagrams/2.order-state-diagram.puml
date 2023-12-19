@@ -1,0 +1,22 @@
+@startuml
+[*]     --> OrderCreated
+OrderCreated: Заказ создан
+OrderCreated --> OrderPrepareStarted
+OrderPrepareStarted --> OrderCancelled : Водитель не найден
+OrderDriverFound: Водитель найден
+OrderPrepareStarted --> OrderDriverFound : Водитель найден
+OrderDriverFound --> OrderPrepareFinished
+OrderPrepareFinished: Заказ подготовлен
+OrderPrepareFinished --> OrderCarDispatchStarted
+OrderCarDispatchStarted : Подача машины
+OrderCarDispatchStarted --> OrderCarDispatchFinished
+OrderCarDispatchFinished --> OrderClientWaitingStarted
+OrderClientWaitingStarted --> OrderClientWaitingFinished
+OrderClientWaitingFinished --> OrderCancelled : Клиента долго нет на месте подачи
+OrderClientWaitingFinished --> OrderRideStarted: Клиент на месте
+OrderRideStarted --> OrderRideFinished
+OrderRideFinished --> OrderCompleted
+
+OrderCancelled --> OrderCompleted
+
+@enduml
