@@ -1,0 +1,124 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+!include <tupadr3/devicons2/MySQL>
+!include <tupadr3/material/queue>
+!include <tupadr3/material/mail>
+
+AddElementTag("v1.0", $borderColor="#d73027")
+AddElementTag("v1.1", $fontColor="#d73027")
+AddElementTag("backup", $fontColor="orange")
+
+AddRelTag("backup", $textColor="orange", $lineColor="orange", $lineStyle = DashedLine())
+
+Person(unregisteredUser, "Незарегистрированный пользователь", "Отсутствуют личные данные в системе")
+Person(client, "Клиент", "Пользователь, зарегистрированный в системе, способный оформлять запись на онлайн-консультацию")
+Person(expert, "Эксперт", "Пользователь, зарегистрированный в системе как специалист в определенной сфере, способный проводить онлайн-консультации")
+Person(administrator, "Администратор", "Управление учетными записями, решение жалоб на экспертов/клиентов/отзывы")
+
+System_Boundary(service, "Сервис онлайн-консультаций") {
+    Container(apiGateway, "API-gateway", "C++", "Распределяем запросы по разным микросервисами")
+
+    'Клиентские приложения
+    Container(clientWebApp, "Клиентский портал", "React", "Веб-интерфейс панели управления для клиента, предоставляющий возможность выбирать и записываться на консультацию к клиенту")
+    unregisteredUser --> clientWebApp: "Регистрация нового пользователя в качестве клиента"
+    client --> clientWebApp: "Просмотр дорожной обстановки, заказ такси, выбор параметров заказа"
+    clientWebApp --> apiGateway : "Использует\n[HTTPS]"
+
+    Container(expertWebApp, "Портал для экспертов", "React", "Веб-интерфейс панели управления для клиента, дающий возможность предоставлять свои услуги, расширять клиентскую базу, управлять расписанием и тарифами.")
+    unregisteredUser --> expertWebApp: "Регистрация нового пользователя в качестве водителя"
+    expert --> expertWebApp: "Просмотр дорожной обстановки, принятие заказа"
+    expertWebApp --> apiGateway : "Использует\n[HTTPS]"
+
+    Container(adminWebApp, "Портал администратора", "React", "Веб-интерфейс панели управления для работы администратора, предоставляющий весь необходимый контекст для решения задач")
+    administrator --> adminWebApp: "Управление учетными записями, решение жалоб на экспертов/клиентов/отзывы"
+    adminWebApp --> apiGateway : "Использует\n[HTTPS]"
+
+    'Микросервисы пользователей
+    Container(userAuthMicroservice, "Микросервис авторизации пользователей", "C++", "Авторизация пользователей")
+    apiGateway --> userAuthMicroservice : "Авторизация пользователя"
+    ContainerDb(userAuthMicroserviceDB, "База данных микросервиса авторизации пользователей", "MySQL", "Хранит и управляет информацией, связанной с авторизацией о пользователе", $sprite="mysql")
+    userAuthMicroservice --> userAuthMicroserviceDB : "Прочитать/Записать информацию"
+
+    'пользователи
+    Container(userMicroservice, "Микросервис пользователей", "C++", "Редактирование пользователем информации в своем аккаунте")
+    apiGateway --> userMicroservice : "Работа с аккаунтом клиента/эксперта"
+    ContainerDb(userMicroserviceDB, "База данных микросервиса пользователя", "MySQL", "Сохраняет информацию о пользователе", $sprite="mysql")
+    userMicroservice --> userMicroserviceDB : "Прочитать/Записать информацию"
+    ContainerQueue(userMessageBus, "Шина сообщений пользователя", "Container: RabbitMQ, AMQP", "Отвечает за события, связанные с изменением состояния пользователя", $sprite="queue")
+    userAuthMicroservice --> userMessageBus : "Публикация события авторизации в системе"
+    userMicroservice --> userMessageBus : "Публикация события изменения агрегата клиента/водителя"
+
+    'Стоимость консультации
+    Container(priceMicroservice, "Микросервис расчета цены за консультацию", "C++", "По переданным данным вычисляет стоимость консультации")
+    apiGateway --> priceMicroservice : "Рассчитать стоимость"
+    ContainerDb(priceMicroserviceDB, "База данных микросервиса расчета цены", "MySQL", "", $sprite="mysql")
+    priceMicroservice --> priceMicroserviceDB : "Прочитать/Записать информацию"
+    ContainerQueue(priceMessageBus, "Шина сообщений стоимости консультации", "Container: RabbitMQ, AMQP", "Отвечает за события, связанные с изменением стоимости консультации", $sprite="queue")
+    priceMicroservice --> priceMessageBus : "Публикация события изменения стоимости поездок"
+
+    'Расписание консультаций
+    Container(scheduleMicroservice, "Микросервис расписания консультаций", "C++", "Отображает актуальное расписание консультаций")
+    apiGateway --> scheduleMicroservice : "Обновить расписание"
+    ContainerDb(scheduleMicroserviceDB, "База данных микросервиса расписания консультаций", "MySQL", "Изменяет и хранит актуальное расписание консультаций", $sprite="mysql")
+    scheduleMicroservice --> scheduleMicroserviceDB : "Прочитать/Записать информацию о расписании консультаций, изменить статус сеанса"
+    ContainerQueue(scheduleMessageBus, "Шина сообщений расписания консультации", "Container: RabbitMQ, AMQP", "Отвечает за события, связанные с обновлением расписания консультаций экспертов", $sprite="queue")
+    scheduleMicroservice --> scheduleMessageBus : "Публикация события изменения стоимости поездок"
+
+    'Саппорт
+    Container(supportMicroservice, "Микросервис поддержки", "C++", "Отвечает за обработку обращений клиентов и экспертов и предоставление поддержки по различным вопросам.")
+    apiGateway --> supportMicroservice : "Работа с обращениями"
+    ContainerDb(supportMicroserviceDB, "База данных микросервиса поддержки", "MySQL", "Информация обо всех обращениях в техническую поддержку, отчетах водителей о них и их автомобилях", $sprite="mysql")
+    supportMicroservice --> supportMicroserviceDB : "Прочитать/Записать информацию"
+
+    'Запись на консультацию
+    Container(orderMicroservice, "Микросервис заказов", "C++", "Отвечает за обработку и управление записями клиентом на консультацию у определенному эксперту")
+    apiGateway --> orderMicroservice : "Записаться на консультацию"
+    ContainerDb(orderMicroserviceDB, "База данных микросервиса заказов", "MySQL", "", $sprite="mysql")
+    orderMicroservice --> orderMicroserviceDB : "Прочитать/Записать информацию"
+    ContainerQueue(orderMessageBus, "Шина сообщений записи", "Container: RabbitMQ, AMQP", "Отвечает за события, связанные с изменением статуса записи", $sprite="queue")
+
+    'Оплата заказа
+    Container(bankingMicroservice, "Микросервис оплаты", "C++", "Обеспечение поступления денежных средств за осуществленные консультации от клиентов к экспертам")
+    apiGateway --> bankingMicroservice
+    ContainerDb(bankingMicroserviceDb, "База данных микросервиса оплаты", "MySQL", $sprite="mysql")
+    bankingMicroservice --> bankingMicroserviceDb : "Прочитать/Записать информацию"
+
+    Container(bankingNotificationMicroservice, "Микросервис уведомления об оплате", "C++", "Уведомление участников оплаты о ее статусе")
+    apiGateway --> bankingNotificationMicroservice
+    ContainerDb(bankingNotificationMicroserviceDb, "База данных микросервиса уведомления об оплате", "mysql" )
+    bankingNotificationMicroservice --> bankingNotificationMicroserviceDb : "Прочитать/Записать информацию"
+    ContainerQueue(orderPaymentQueue, "Шина сообщений оплаты заказа", "Container: RabbitMQ, AMQP", "Отвечает за события, связанные с изменением статуса оплаты консультации", $sprite="queue")
+    orderMicroservice --> orderPaymentQueue: "Отслеживание оплаты заказа"
+    bankingMicroservice --> orderMessageBus : "Отслеживание статуса заказа"
+    bankingNotificationMicroservice --> orderMessageBus : "Уведомление пользователей об оплате"
+
+    'Отзывы и рейтинг
+    Container(ratingAndFeedbackMicroservice, "Микросервис рейтинга и отзывов", "C++", "Отвечает за отправку и изменение клиентами и экспертами рейтингов и отзывов друг о друге.")
+    apiGateway --> ratingAndFeedbackMicroservice : "Работа с рейтингом и отзывами"
+    ContainerDb(ratingAndFeedbackMicroserviceDB, "База данных микросервиса рейтингов и отзывов", "MySQL", "Изменяет информацию о рейтинге пользователя и актуализирует отзывы", $sprite="mysql")
+    ratingAndFeedbackMicroservice --> ratingAndFeedbackMicroserviceDB : "Прочитать/Записать информацию"
+
+    'Сессия
+    Container(sessionMicroservice, "Микросервис сессий", "C++", "Отвечает за создание и удаление сессии для консультации")
+    apiGateway --> sessionMicroservice : "Работа с сессией"
+    ContainerDb(sessionMicroserviceDB, "База данных микросервиса сессий", "MySQL", "Создает и обрабатывает сессию для консультации", $sprite="mysql")
+    sessionMicroservice --> sessionMicroserviceDB : "Прочитать/Записать информацию"
+
+    'Аналитика
+    Container(analyticsAndReportingMicroservice, "Микросервис аналитики и отчетности", "C++", "Отвечает за сбор и анализ данных о пройденных консультациях, платежах и других ключевых метриках приложения")
+    apiGateway --> analyticsAndReportingMicroservice : "Работа с аналитической информацией"
+    ContainerDb(analyticsAndReportingMicroserviceDB, "База данных микросервиса аналитики и отчетности", "Greenplum", "")
+    analyticsAndReportingMicroservice ---> analyticsAndReportingMicroserviceDB : "Прочитать/Записать информацию"
+    analyticsAndReportingMicroservice --> supportMicroservice : "Собрать данные раз в день для выгрузки в аналитическую БД\n[gRPC]"
+    analyticsAndReportingMicroservice --> orderMicroservice : "Собрать данные раз в день для выгрузки в аналитическую БД\n[gRPC]"
+    analyticsAndReportingMicroservice --> bankingMicroservice : "Собрать данные раз в день для выгрузки в аналитическую БД\n[gRPC]"
+
+
+    orderMicroservice --> priceMicroservice : "Рассчитать стоимость заказа\n[gRPC]"
+}
+
+Container_Ext(bankingSystemExt, "Проведение банковских платежей")
+bankingMicroservice --> bankingSystemExt : "Провести оплату"
+
+SHOW_LEGEND()
+@enduml
